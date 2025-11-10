@@ -12,7 +12,9 @@ source=(
     "README.md"
     "treex.conf"
 )
-sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP')
+sha256sums=('f28f0b5f7a5f151192cbafb66a3191da8362e169aa367d421ace839172741406'
+            '7a4ea7a85f036a4d4c287c591f8d2276c19e7900665b980083ccd57e5827b839'
+            '9879dc569d2a7197f59f5ef87b9a6bce21249d32604dfff35031960108046a42')
 
 package() {
     mkdir -p "$pkgdir/usr/bin"
