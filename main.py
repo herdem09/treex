@@ -1,3 +1,4 @@
+
 import os
 import sys
 import argparse
@@ -7,16 +8,16 @@ CONNECT_LAST = "└── "
 PIPE = "│   "
 SPACE = "    "
 
-def print_tree(root_path, show_hidden=False):
+def print_tree(root_path, show_hidden=False, max_depth=None):
     root_path = os.path.abspath(root_path)
     if not os.path.exists(root_path):
         print(f"Error: path does not exist: {root_path}", file=sys.stderr)
         return 1
 
     print(f"{os.path.basename(root_path)}/")
-    _walk(root_path, "", show_hidden)
+    _walk(root_path, "", show_hidden, 0, max_depth)
 
-def _walk(path, prefix, show_hidden):
+def _walk(path, prefix, show_hidden, current_depth, max_depth):
     try:
         with os.scandir(path) as it:
             entries = [e for e in it if show_hidden or not e.name.startswith(".")]
@@ -34,16 +35,18 @@ def _walk(path, prefix, show_hidden):
         print(prefix + connector + name)
 
         if entry.is_dir(follow_symlinks=False):
-            extension = SPACE if is_last else PIPE
-            _walk(os.path.join(path, entry.name), prefix + extension, show_hidden)
+            if max_depth is None or current_depth + 1 < max_depth:
+                extension = SPACE if is_last else PIPE
+                _walk(os.path.join(path, entry.name), prefix + extension, show_hidden, current_depth + 1, max_depth)
 
 def main():
-    parser = argparse.ArgumentParser(description="TreeX - Minimal tree-like directory lister")
+    parser = argparse.ArgumentParser(description="TreeX - Directory lister with hidden file and depth support")
     parser.add_argument("path", nargs="?", default=os.getcwd(), help="Directory to list")
     parser.add_argument("-a", "--all", action="store_true", help="Show hidden files")
+    parser.add_argument("--depth", type=int, default=None, help="Limit tree depth")
     args = parser.parse_args()
 
-    rc = print_tree(args.path, show_hidden=args.all)
+    rc = print_tree(args.path, show_hidden=args.all, max_depth=args.depth)
     if rc:
         sys.exit(rc)
 
