@@ -39,16 +39,15 @@ def format_lines(path):
     except Exception:
         return "N/A"
 
-def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, show_lines=False):
+def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, show_lines=False, ignore_types=None):
     root_path = os.path.abspath(root_path)
     if not os.path.exists(root_path):
         print(f"Error: path does not exist: {root_path}", file=sys.stderr)
         return 1
-
     print(f"{os.path.basename(root_path)}/")
-    _walk(root_path, "", show_hidden, 0, max_depth, show_size, show_lines)
+    _walk(root_path, "", show_hidden, 0, max_depth, show_size, show_lines, ignore_types)
 
-def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_lines):
+def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_lines, ignore_types):
     try:
         with os.scandir(path) as it:
             entries = [e for e in it if show_hidden or not e.name.startswith(".")]
@@ -62,18 +61,23 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
         is_last = (idx == len(entries) - 1)
         connector = CONNECT_LAST if is_last else CONNECT_MID
         name = entry.name + ("/" if entry.is_dir() else "")
-        if show_size:
-            name += f" ({format_size(entry.path)})"
-        if entry.is_file() and show_lines:
-            name += f" [{format_lines(entry.path)} lines]"
+
+        if entry.is_file():
+            if ignore_types and any(entry.name.endswith(ext) for ext in ignore_types):
+                continue
+            if show_size:
+                name += f" ({format_size(entry.path)})"
+            if show_lines:
+                name += f" [{format_lines(entry.path)} lines]"
+
         print(prefix + connector + name)
 
         if entry.is_dir(follow_symlinks=False):
             if max_depth is None or current_depth + 1 < max_depth:
                 extension = SPACE if is_last else PIPE
-                _walk(os.path.join(path, entry.name), prefix + extension, show_hidden, current_depth + 1, max_depth, show_size, show_lines)
+                _walk(os.path.join(path, entry.name), prefix + extension, show_hidden, current_depth + 1, max_depth, show_size, show_lines, ignore_types)
 
-def summary_stats(path, show_hidden=False):
+def summary_stats(path, show_hidden=False, ignore_types=None):
     total_files = 0
     total_dirs = 0
     total_size = 0
@@ -84,8 +88,11 @@ def summary_stats(path, show_hidden=False):
         hidden_count += sum(1 for d in dirs if d.startswith(".") and show_hidden)
         hidden_count += sum(1 for f in files if f.startswith(".") and show_hidden)
         total_dirs += len(dirs)
-        total_files += len(files)
+
         for f in files:
+            if ignore_types and any(f.endswith(ext) for ext in ignore_types):
+                continue
+            total_files += 1
             fp = os.path.join(root, f)
             try:
                 total_size += os.path.getsize(fp)
@@ -99,8 +106,8 @@ def summary_stats(path, show_hidden=False):
 
     return total_files, total_dirs, total_size, total_lines, hidden_count
 
-def print_summary(path, show_hidden=False):
-    total_files, total_dirs, total_size, total_lines, hidden_count = summary_stats(path, show_hidden)
+def print_summary(path, show_hidden=False, ignore_types=None):
+    total_files, total_dirs, total_size, total_lines, hidden_count = summary_stats(path, show_hidden, ignore_types)
     print("\n--- Summary ---")
     print(f"dosya sayısı: {total_files}")
     print(f"klasör sayısı: {total_dirs}")
@@ -116,14 +123,16 @@ def main():
     parser.add_argument("--size", action="store_true", help="Show file and folder sizes")
     parser.add_argument("--lines", action="store_true", help="Show number of lines in files")
     parser.add_argument("--summary", action="store_true", help="Show summary statistics")
+    parser.add_argument("--ignoretype", "-it", nargs="*", default=None, help="Ignore specified file types (.ext)")
     args = parser.parse_args()
 
-    rc = print_tree(args.path, show_hidden=args.all, max_depth=args.depth, show_size=args.size, show_lines=args.lines)
+    rc = print_tree(args.path, show_hidden=args.all, max_depth=args.depth, show_size=args.size,
+                    show_lines=args.lines, ignore_types=args.ignoretype)
     if rc:
         sys.exit(rc)
 
     if args.summary:
-        print_summary(args.path, show_hidden=args.all)
+        print_summary(args.path, show_hidden=args.all, ignore_types=args.ignoretype)
 
 if __name__ == "__main__":
     main()
