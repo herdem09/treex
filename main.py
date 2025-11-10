@@ -109,11 +109,11 @@ def summary_stats(path, show_hidden=False, ignore_types=None):
 def print_summary(path, show_hidden=False, ignore_types=None):
     total_files, total_dirs, total_size, total_lines, hidden_count = summary_stats(path, show_hidden, ignore_types)
     print("\n--- Summary ---")
-    print(f"dosya sayısı: {total_files}")
-    print(f"klasör sayısı: {total_dirs}")
-    print(f"toplam boyut: {format_size_bytes(total_size)}")
-    print(f"toplam satır: {total_lines}")
-    print(f"gizli dosya/klasör sayısı: {hidden_count}")
+    print(f"Files: {total_files}")
+    print(f"Directories: {total_dirs}")
+    print(f"Total size: {format_size_bytes(total_size)}")
+    print(f"Total lines: {total_lines}")
+    print(f"Hidden files/directories: {hidden_count}")
 
 def main():
     parser = argparse.ArgumentParser(description="TreeX - Directory lister with optional features")
