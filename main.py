@@ -2,6 +2,7 @@
 import os
 import sys
 import argparse
+import datetime
 from collections import Counter
 
 CONNECT_MID = "├── "
@@ -40,6 +41,13 @@ def format_lines(path):
     except Exception:
         return 0
 
+def format_mtime(path):
+    try:
+        ts = os.path.getmtime(path)
+        return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return "N/A"
+
 def should_include_file(filename, ignore_types=None, ignore_files=None, show_types=None):
     if show_types and not any(filename.endswith(ext) for ext in show_types):
         return False
@@ -50,7 +58,7 @@ def should_include_file(filename, ignore_types=None, ignore_files=None, show_typ
     return True
 
 def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, show_lines=False,
-               ignore_types=None, ignore_files=None, show_types=None, output_file=None):
+               ignore_types=None, ignore_files=None, show_types=None, last_change=False, output_file=None):
     root_path = os.path.abspath(root_path)
     if not os.path.exists(root_path):
         print(f"Error: path does not exist: {root_path}", file=sys.stderr)
@@ -58,7 +66,7 @@ def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, sh
 
     lines = [f"{os.path.basename(root_path)}/"]
     _walk(root_path, "", show_hidden, 0, max_depth, show_size, show_lines,
-          ignore_types, ignore_files, show_types, lines)
+          ignore_types, ignore_files, show_types, last_change, lines)
     
     for line in lines:
         print(line)
@@ -70,7 +78,7 @@ def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, sh
             print(f"Error writing to {output_file}: {e}", file=sys.stderr)
 
 def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_lines,
-          ignore_types, ignore_files, show_types, lines):
+          ignore_types, ignore_files, show_types, last_change, lines):
     try:
         with os.scandir(path) as it:
             entries = [e for e in it if show_hidden or not e.name.startswith(".")]
@@ -92,15 +100,19 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
                 name += f" ({format_size_bytes(format_size(entry.path))})"
             if show_lines:
                 name += f" [{format_lines(entry.path)} lines]"
-
-        lines.append(prefix + connector + name)
+            if last_change:
+                name += f" (modified: {format_mtime(entry.path)})"
 
         if entry.is_dir(follow_symlinks=False):
+            if last_change:
+                name += f" (modified: {format_mtime(entry.path)})"
             if max_depth is None or current_depth + 1 < max_depth:
                 extension = SPACE if is_last else PIPE
                 _walk(os.path.join(path, entry.name), prefix + extension, show_hidden,
                       current_depth + 1, max_depth, show_size, show_lines,
-                      ignore_types, ignore_files, show_types, lines)
+                      ignore_types, ignore_files, show_types, last_change, lines)
+
+        lines.append(prefix + connector + name)
 
 def summary_stats(path, show_hidden=False, ignore_types=None, ignore_files=None,
                   show_types=None, max_depth=None):
@@ -243,6 +255,7 @@ def main():
     parser.add_argument("--showtype", "-st", nargs="*", default=None, help="Only show these file types (.ext)")
     parser.add_argument("--summary", action="store_true", help="Show summary statistics")
     parser.add_argument("--extdist", "-ed", action="store_true", help="Show extension distribution")
+    parser.add_argument("--lastchange", "-lc", action="store_true", help="Show last modified time for files and folders")
     parser.add_argument("--export", "-ex", type=str, help="Export output to specified file")
     args = parser.parse_args()
 
@@ -255,6 +268,7 @@ def main():
         ignore_types=args.ignoretype,
         ignore_files=args.ignorefile,
         show_types=args.showtype,
+        last_change=args.lastchange,
         output_file=args.export
     )
     if rc:
