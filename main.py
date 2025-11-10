@@ -103,16 +103,14 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
             if last_change:
                 name += f" (modified: {format_mtime(entry.path)})"
 
+        lines.append(prefix + connector + name)
+
         if entry.is_dir(follow_symlinks=False):
-            if last_change:
-                name += f" (modified: {format_mtime(entry.path)})"
             if max_depth is None or current_depth + 1 < max_depth:
                 extension = SPACE if is_last else PIPE
                 _walk(os.path.join(path, entry.name), prefix + extension, show_hidden,
                       current_depth + 1, max_depth, show_size, show_lines,
                       ignore_types, ignore_files, show_types, last_change, lines)
-
-        lines.append(prefix + connector + name)
 
 def summary_stats(path, show_hidden=False, ignore_types=None, ignore_files=None,
                   show_types=None, max_depth=None):
@@ -134,8 +132,10 @@ def summary_stats(path, show_hidden=False, ignore_types=None, ignore_files=None,
         if max_depth is not None and current_depth >= max_depth:
             dirs[:] = []
 
-        hidden_count += sum(1 for d in dirs if d.startswith(".") and show_hidden)
-        hidden_count += sum(1 for f in files if f.startswith(".") and show_hidden)
+        if show_hidden:
+            hidden_count += sum(1 for d in dirs if d.startswith("."))
+            hidden_count += sum(1 for f in files if f.startswith("."))
+        
         total_dirs += len(dirs)
 
         for f in files:
@@ -190,6 +190,7 @@ def print_summary(stat_dict, output_file=None):
         f"Total files: {stat_dict['total_files']}",
         f"Total directories: {stat_dict['total_dirs']}",
         f"Total size: {format_size_bytes(stat_dict['total_size'])}",
+        f"Total lines: {stat_dict['total_lines']}",
         f"Largest file size: {format_size_bytes(stat_dict['max_file_size'])}",
         f"Smallest file size: {format_size_bytes(stat_dict['min_file_size'])}",
         f"Largest directory size: {format_size_bytes(stat_dict['max_dir_size'])}",
@@ -253,28 +254,31 @@ def main():
     parser.add_argument("--ignoretype", "-it", nargs="*", default=None, help="Ignore these file types (.ext)")
     parser.add_argument("--ignorefile", "-if", nargs="*", default=None, help="Ignore these specific files")
     parser.add_argument("--showtype", "-st", nargs="*", default=None, help="Only show these file types (.ext)")
-    parser.add_argument("--summary", action="store_true", help="Show summary statistics")
+    parser.add_argument("--summary", action="store_true", help="Show summary statistics (with tree)")
+    parser.add_argument("--justsum", action="store_true", help="Show only summary statistics (no tree)")
     parser.add_argument("--extdist", "-ed", action="store_true", help="Show extension distribution")
     parser.add_argument("--lastchange", "-lc", action="store_true", help="Show last modified time for files and folders")
     parser.add_argument("--export", "-ex", type=str, help="Export output to specified file")
     args = parser.parse_args()
 
-    rc = print_tree(
-        args.path,
-        show_hidden=args.all,
-        max_depth=args.depth,
-        show_size=args.size,
-        show_lines=args.lines,
-        ignore_types=args.ignoretype,
-        ignore_files=args.ignorefile,
-        show_types=args.showtype,
-        last_change=args.lastchange,
-        output_file=args.export
-    )
-    if rc:
-        sys.exit(rc)
+    # Eğer sadece justsum isteniyorsa, tree'yi gösterme
+    if not args.justsum:
+        rc = print_tree(
+            args.path,
+            show_hidden=args.all,
+            max_depth=args.depth,
+            show_size=args.size,
+            show_lines=args.lines,
+            ignore_types=args.ignoretype,
+            ignore_files=args.ignorefile,
+            show_types=args.showtype,
+            last_change=args.lastchange,
+            output_file=args.export
+        )
+        if rc:
+            sys.exit(rc)
 
-    if args.summary:
+    if args.summary or args.justsum:
         stat_dict = summary_stats(
             args.path,
             show_hidden=args.all,
