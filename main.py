@@ -78,7 +78,7 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
                 extension = SPACE if is_last else PIPE
                 _walk(os.path.join(path, entry.name), prefix + extension, show_hidden, current_depth + 1, max_depth, show_size, show_lines, ignore_types)
 
-def summary_stats(path, show_hidden=False, ignore_types=None):
+def summary_stats(path, show_hidden=False, ignore_types=None, max_depth=None):
     total_files = 0
     total_dirs = 0
     total_size = 0
@@ -90,7 +90,12 @@ def summary_stats(path, show_hidden=False, ignore_types=None):
     min_dir_size = None
     max_lines = 0
 
+    root_depth = path.rstrip(os.sep).count(os.sep)
+
     for root, dirs, files in os.walk(path):
+        current_depth = root.rstrip(os.sep).count(os.sep) - root_depth
+        if max_depth is not None and current_depth >= max_depth:
+            dirs[:] = []  # daha derine gitmeyi kes
         hidden_count += sum(1 for d in dirs if d.startswith(".") and show_hidden)
         hidden_count += sum(1 for f in files if f.startswith(".") and show_hidden)
         total_dirs += len(dirs)
@@ -141,6 +146,7 @@ def summary_stats(path, show_hidden=False, ignore_types=None):
         "max_lines": max_lines
     }
 
+
 def print_summary(stat_dict):
     print("\n--- Summary ---")
     print(f"Total files: {stat_dict['total_files']}")
@@ -153,20 +159,33 @@ def print_summary(stat_dict):
     print(f"Average file size: {format_size_bytes(stat_dict['avg_file_size'])}")
     print(f"Longest file lines: {stat_dict['max_lines']}")
 
-def extension_distribution(path, show_hidden=False, ignore_types=None):
+def extension_distribution(path, show_hidden=False, ignore_types=None, max_depth=None):
     ext_counter = Counter()
+    dir_count = 0
+    root_depth = path.rstrip(os.sep).count(os.sep)
+
     for root, dirs, files in os.walk(path):
+        current_depth = root.rstrip(os.sep).count(os.sep) - root_depth
+        if max_depth is not None and current_depth >= max_depth:
+            dirs[:] = []
+
+        for d in dirs:
+            if not show_hidden and d.startswith("."):
+                continue
+            dir_count += 1
         for f in files:
             if ignore_types and any(f.endswith(ext) for ext in ignore_types):
                 continue
             if not show_hidden and f.startswith("."):
                 continue
-            ext = os.path.splitext(f)[1] or "NO_EXT"
+            ext = os.path.splitext(f)[1] or "(no extension)"
             ext_counter[ext] += 1
-    return ext_counter
+    return ext_counter, dir_count
 
-def print_extdist(ext_counter):
+
+def print_extdist(ext_counter, dir_count):
     print("\n--- Extension Distribution ---")
+    print(f"Directories: {dir_count}")
     for ext, count in ext_counter.most_common():
         print(f"{ext}: {count}")
 
@@ -182,18 +201,37 @@ def main():
     parser.add_argument("--extdist", "-ed", action="store_true", help="Show extension distribution")
     args = parser.parse_args()
 
-    rc = print_tree(args.path, show_hidden=args.all, max_depth=args.depth, show_size=args.size,
-                    show_lines=args.lines, ignore_types=args.ignoretype)
+    # Tree gösterimi
+    rc = print_tree(
+        args.path,
+        show_hidden=args.all,
+        max_depth=args.depth,
+        show_size=args.size,
+        show_lines=args.lines,
+        ignore_types=args.ignoretype
+    )
     if rc:
         sys.exit(rc)
 
+    # Summary
     if args.summary:
-        stat_dict = summary_stats(args.path, show_hidden=args.all, ignore_types=args.ignoretype)
+        stat_dict = summary_stats(
+            args.path,
+            show_hidden=args.all,
+            ignore_types=args.ignoretype,
+            max_depth=args.depth
+        )
         print_summary(stat_dict)
 
+    # Extension distribution
     if args.extdist:
-        ext_counter = extension_distribution(args.path, show_hidden=args.all, ignore_types=args.ignoretype)
-        print_extdist(ext_counter)
+        ext_counter, dir_count = extension_distribution(
+            args.path,
+            show_hidden=args.all,
+            ignore_types=args.ignoretype,
+            max_depth=args.depth
+        )
+        print_extdist(ext_counter, dir_count)
 
 if __name__ == "__main__":
     main()
