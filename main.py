@@ -1,4 +1,3 @@
-
 import os
 import sys
 import argparse
@@ -10,7 +9,16 @@ SPACE = "    "
 
 def format_size(path):
     try:
-        size = os.path.getsize(path)
+        if os.path.isfile(path):
+            size = os.path.getsize(path)
+        else:  # klasör boyutu
+            size = 0
+            for root, dirs, files in os.walk(path):
+                for f in files:
+                    try:
+                        size += os.path.getsize(os.path.join(root, f))
+                    except Exception:
+                        continue
         for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
             if size < 1024:
                 return f"{size} {unit}"
@@ -49,11 +57,12 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
         is_last = (idx == len(entries) - 1)
         connector = CONNECT_LAST if is_last else CONNECT_MID
         name = entry.name + ("/" if entry.is_dir() else "")
-        if entry.is_file():
-            if show_size:
-                name += f" ({format_size(entry.path)})"
-            if show_lines:
-                name += f" [{format_lines(entry.path)} lines]"
+
+        if show_size:
+            name += f" ({format_size(entry.path)})"
+        if entry.is_file() and show_lines:
+            name += f" [{format_lines(entry.path)} lines]"
+
         print(prefix + connector + name)
 
         if entry.is_dir(follow_symlinks=False):
@@ -66,7 +75,7 @@ def main():
     parser.add_argument("path", nargs="?", default=os.getcwd(), help="Directory to list")
     parser.add_argument("-a", "--all", action="store_true", help="Show hidden files")
     parser.add_argument("--depth", type=int, default=None, help="Limit tree depth")
-    parser.add_argument("--size", action="store_true", help="Show file sizes")
+    parser.add_argument("--size", action="store_true", help="Show file and folder sizes")
     parser.add_argument("--lines", action="store_true", help="Show number of lines in files")
     args = parser.parse_args()
 
