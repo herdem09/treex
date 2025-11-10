@@ -40,15 +40,22 @@ def format_lines(path):
     except Exception:
         return 0
 
-def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, show_lines=False, ignore_types=None):
+def should_ignore_file(filename, ignore_types=None, ignore_files=None):
+    if ignore_types and any(filename.endswith(ext) for ext in ignore_types):
+        return True
+    if ignore_files and filename in ignore_files:
+        return True
+    return False
+
+def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, show_lines=False, ignore_types=None, ignore_files=None):
     root_path = os.path.abspath(root_path)
     if not os.path.exists(root_path):
         print(f"Error: path does not exist: {root_path}", file=sys.stderr)
         return 1
     print(f"{os.path.basename(root_path)}/")
-    _walk(root_path, "", show_hidden, 0, max_depth, show_size, show_lines, ignore_types)
+    _walk(root_path, "", show_hidden, 0, max_depth, show_size, show_lines, ignore_types, ignore_files)
 
-def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_lines, ignore_types):
+def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_lines, ignore_types, ignore_files):
     try:
         with os.scandir(path) as it:
             entries = [e for e in it if show_hidden or not e.name.startswith(".")]
@@ -64,7 +71,7 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
         name = entry.name + ("/" if entry.is_dir() else "")
 
         if entry.is_file():
-            if ignore_types and any(entry.name.endswith(ext) for ext in ignore_types):
+            if should_ignore_file(entry.name, ignore_types, ignore_files):
                 continue
             if show_size:
                 name += f" ({format_size_bytes(format_size(entry.path))})"
@@ -76,9 +83,9 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
         if entry.is_dir(follow_symlinks=False):
             if max_depth is None or current_depth + 1 < max_depth:
                 extension = SPACE if is_last else PIPE
-                _walk(os.path.join(path, entry.name), prefix + extension, show_hidden, current_depth + 1, max_depth, show_size, show_lines, ignore_types)
+                _walk(os.path.join(path, entry.name), prefix + extension, show_hidden, current_depth + 1, max_depth, show_size, show_lines, ignore_types, ignore_files)
 
-def summary_stats(path, show_hidden=False, ignore_types=None, max_depth=None):
+def summary_stats(path, show_hidden=False, ignore_types=None, max_depth=None, ignore_files=None):
     total_files = 0
     total_dirs = 0
     total_size = 0
@@ -95,13 +102,14 @@ def summary_stats(path, show_hidden=False, ignore_types=None, max_depth=None):
     for root, dirs, files in os.walk(path):
         current_depth = root.rstrip(os.sep).count(os.sep) - root_depth
         if max_depth is not None and current_depth >= max_depth:
-            dirs[:] = []  # daha derine gitmeyi kes
+            dirs[:] = []
+
         hidden_count += sum(1 for d in dirs if d.startswith(".") and show_hidden)
         hidden_count += sum(1 for f in files if f.startswith(".") and show_hidden)
         total_dirs += len(dirs)
 
         for f in files:
-            if ignore_types and any(f.endswith(ext) for ext in ignore_types):
+            if should_ignore_file(f, ignore_types, ignore_files):
                 continue
             total_files += 1
             fp = os.path.join(root, f)
@@ -146,7 +154,6 @@ def summary_stats(path, show_hidden=False, ignore_types=None, max_depth=None):
         "max_lines": max_lines
     }
 
-
 def print_summary(stat_dict):
     print("\n--- Summary ---")
     print(f"Total files: {stat_dict['total_files']}")
@@ -159,7 +166,7 @@ def print_summary(stat_dict):
     print(f"Average file size: {format_size_bytes(stat_dict['avg_file_size'])}")
     print(f"Longest file lines: {stat_dict['max_lines']}")
 
-def extension_distribution(path, show_hidden=False, ignore_types=None, max_depth=None):
+def extension_distribution(path, show_hidden=False, ignore_types=None, max_depth=None, ignore_files=None):
     ext_counter = Counter()
     dir_count = 0
     root_depth = path.rstrip(os.sep).count(os.sep)
@@ -174,14 +181,13 @@ def extension_distribution(path, show_hidden=False, ignore_types=None, max_depth
                 continue
             dir_count += 1
         for f in files:
-            if ignore_types and any(f.endswith(ext) for ext in ignore_types):
+            if should_ignore_file(f, ignore_types, ignore_files):
                 continue
             if not show_hidden and f.startswith("."):
                 continue
             ext = os.path.splitext(f)[1] or "(no extension)"
             ext_counter[ext] += 1
     return ext_counter, dir_count
-
 
 def print_extdist(ext_counter, dir_count):
     print("\n--- Extension Distribution ---")
@@ -197,6 +203,7 @@ def main():
     parser.add_argument("--size", action="store_true", help="Show file and folder sizes")
     parser.add_argument("--lines", action="store_true", help="Show number of lines in files")
     parser.add_argument("--ignoretype", "-it", nargs="*", default=None, help="Ignore specified file types (.ext)")
+    parser.add_argument("--ignorefile", "-if", nargs="*", default=None, help="Ignore specified file names")
     parser.add_argument("--summary", action="store_true", help="Show summary statistics")
     parser.add_argument("--extdist", "-ed", action="store_true", help="Show extension distribution")
     args = parser.parse_args()
@@ -208,7 +215,8 @@ def main():
         max_depth=args.depth,
         show_size=args.size,
         show_lines=args.lines,
-        ignore_types=args.ignoretype
+        ignore_types=args.ignoretype,
+        ignore_files=args.ignorefile
     )
     if rc:
         sys.exit(rc)
@@ -219,7 +227,8 @@ def main():
             args.path,
             show_hidden=args.all,
             ignore_types=args.ignoretype,
-            max_depth=args.depth
+            max_depth=args.depth,
+            ignore_files=args.ignorefile
         )
         print_summary(stat_dict)
 
@@ -229,7 +238,8 @@ def main():
             args.path,
             show_hidden=args.all,
             ignore_types=args.ignoretype,
-            max_depth=args.depth
+            max_depth=args.depth,
+            ignore_files=args.ignorefile
         )
         print_extdist(ext_counter, dir_count)
 
