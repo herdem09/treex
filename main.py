@@ -40,22 +40,30 @@ def format_lines(path):
     except Exception:
         return 0
 
-def should_ignore_file(filename, ignore_types=None, ignore_files=None):
-    if ignore_types and any(filename.endswith(ext) for ext in ignore_types):
-        return True
+def should_include_file(filename, ignore_types=None, ignore_files=None, show_types=None, show_files=None):
+    # Show args yüksek öncelik
+    if show_files and filename not in show_files:
+        return False
+    if show_types and not any(filename.endswith(ext) for ext in show_types):
+        return False
+    # Ignore argümanları
     if ignore_files and filename in ignore_files:
-        return True
-    return False
+        return False
+    if ignore_types and any(filename.endswith(ext) for ext in ignore_types):
+        return False
+    return True
 
-def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, show_lines=False, ignore_types=None, ignore_files=None):
+def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, show_lines=False,
+               ignore_types=None, ignore_files=None, show_types=None, show_files=None):
     root_path = os.path.abspath(root_path)
     if not os.path.exists(root_path):
         print(f"Error: path does not exist: {root_path}", file=sys.stderr)
         return 1
     print(f"{os.path.basename(root_path)}/")
-    _walk(root_path, "", show_hidden, 0, max_depth, show_size, show_lines, ignore_types, ignore_files)
+    _walk(root_path, "", show_hidden, 0, max_depth, show_size, show_lines, ignore_types, ignore_files, show_types, show_files)
 
-def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_lines, ignore_types, ignore_files):
+def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_lines,
+          ignore_types, ignore_files, show_types, show_files):
     try:
         with os.scandir(path) as it:
             entries = [e for e in it if show_hidden or not e.name.startswith(".")]
@@ -71,7 +79,7 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
         name = entry.name + ("/" if entry.is_dir() else "")
 
         if entry.is_file():
-            if should_ignore_file(entry.name, ignore_types, ignore_files):
+            if not should_include_file(entry.name, ignore_types, ignore_files, show_types, show_files):
                 continue
             if show_size:
                 name += f" ({format_size_bytes(format_size(entry.path))})"
@@ -83,9 +91,12 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
         if entry.is_dir(follow_symlinks=False):
             if max_depth is None or current_depth + 1 < max_depth:
                 extension = SPACE if is_last else PIPE
-                _walk(os.path.join(path, entry.name), prefix + extension, show_hidden, current_depth + 1, max_depth, show_size, show_lines, ignore_types, ignore_files)
+                _walk(os.path.join(path, entry.name), prefix + extension, show_hidden,
+                      current_depth + 1, max_depth, show_size, show_lines,
+                      ignore_types, ignore_files, show_types, show_files)
 
-def summary_stats(path, show_hidden=False, ignore_types=None, max_depth=None, ignore_files=None):
+def summary_stats(path, show_hidden=False, ignore_types=None, ignore_files=None,
+                  show_types=None, show_files=None, max_depth=None):
     total_files = 0
     total_dirs = 0
     total_size = 0
@@ -109,7 +120,7 @@ def summary_stats(path, show_hidden=False, ignore_types=None, max_depth=None, ig
         total_dirs += len(dirs)
 
         for f in files:
-            if should_ignore_file(f, ignore_types, ignore_files):
+            if not should_include_file(f, ignore_types, ignore_files, show_types, show_files):
                 continue
             total_files += 1
             fp = os.path.join(root, f)
@@ -166,7 +177,8 @@ def print_summary(stat_dict):
     print(f"Average file size: {format_size_bytes(stat_dict['avg_file_size'])}")
     print(f"Longest file lines: {stat_dict['max_lines']}")
 
-def extension_distribution(path, show_hidden=False, ignore_types=None, max_depth=None, ignore_files=None):
+def extension_distribution(path, show_hidden=False, ignore_types=None, ignore_files=None,
+                           show_types=None, show_files=None, max_depth=None):
     ext_counter = Counter()
     dir_count = 0
     root_depth = path.rstrip(os.sep).count(os.sep)
@@ -181,7 +193,7 @@ def extension_distribution(path, show_hidden=False, ignore_types=None, max_depth
                 continue
             dir_count += 1
         for f in files:
-            if should_ignore_file(f, ignore_types, ignore_files):
+            if not should_include_file(f, ignore_types, ignore_files, show_types, show_files):
                 continue
             if not show_hidden and f.startswith("."):
                 continue
@@ -202,13 +214,14 @@ def main():
     parser.add_argument("--depth", type=int, default=None, help="Limit tree depth")
     parser.add_argument("--size", action="store_true", help="Show file and folder sizes")
     parser.add_argument("--lines", action="store_true", help="Show number of lines in files")
-    parser.add_argument("--ignoretype", "-it", nargs="*", default=None, help="Ignore specified file types (.ext)")
-    parser.add_argument("--ignorefile", "-if", nargs="*", default=None, help="Ignore specified file names")
+    parser.add_argument("--ignoretype", "-it", nargs="*", default=None, help="Ignore these file types (.ext)")
+    parser.add_argument("--ignorefile", "-if", nargs="*", default=None, help="Ignore these specific files")
+    parser.add_argument("--showtype", "-st", nargs="*", default=None, help="Only show these file types (.ext)")
+    parser.add_argument("--showfile", "-sf", nargs="*", default=None, help="Only show these specific file names")
     parser.add_argument("--summary", action="store_true", help="Show summary statistics")
     parser.add_argument("--extdist", "-ed", action="store_true", help="Show extension distribution")
     args = parser.parse_args()
 
-    # Tree gösterimi
     rc = print_tree(
         args.path,
         show_hidden=args.all,
@@ -216,30 +229,34 @@ def main():
         show_size=args.size,
         show_lines=args.lines,
         ignore_types=args.ignoretype,
-        ignore_files=args.ignorefile
+        ignore_files=args.ignorefile,
+        show_types=args.showtype,
+        show_files=args.showfile
     )
     if rc:
         sys.exit(rc)
 
-    # Summary
     if args.summary:
         stat_dict = summary_stats(
             args.path,
             show_hidden=args.all,
             ignore_types=args.ignoretype,
-            max_depth=args.depth,
-            ignore_files=args.ignorefile
+            ignore_files=args.ignorefile,
+            show_types=args.showtype,
+            show_files=args.showfile,
+            max_depth=args.depth
         )
         print_summary(stat_dict)
 
-    # Extension distribution
     if args.extdist:
         ext_counter, dir_count = extension_distribution(
             args.path,
             show_hidden=args.all,
             ignore_types=args.ignoretype,
-            max_depth=args.depth,
-            ignore_files=args.ignorefile
+            ignore_files=args.ignorefile,
+            show_types=args.showtype,
+            show_files=args.showfile,
+            max_depth=args.depth
         )
         print_extdist(ext_counter, dir_count)
 
