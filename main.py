@@ -2,6 +2,7 @@
 import os
 import sys
 import argparse
+from collections import Counter
 
 CONNECT_MID = "├── "
 CONNECT_LAST = "└── "
@@ -19,7 +20,7 @@ def format_size_bytes(size_bytes):
 def format_size(path):
     try:
         if os.path.isfile(path):
-            size = os.path.getsize(path)
+            return os.path.getsize(path)
         else:
             size = 0
             for root, dirs, files in os.walk(path):
@@ -28,16 +29,16 @@ def format_size(path):
                         size += os.path.getsize(os.path.join(root, f))
                     except Exception:
                         continue
-        return format_size_bytes(size)
+            return size
     except Exception:
-        return "N/A"
+        return 0
 
 def format_lines(path):
     try:
         with open(path, 'r', errors='ignore') as f:
             return sum(1 for _ in f)
     except Exception:
-        return "N/A"
+        return 0
 
 def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, show_lines=False, ignore_types=None):
     root_path = os.path.abspath(root_path)
@@ -66,7 +67,7 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
             if ignore_types and any(entry.name.endswith(ext) for ext in ignore_types):
                 continue
             if show_size:
-                name += f" ({format_size(entry.path)})"
+                name += f" ({format_size_bytes(format_size(entry.path))})"
             if show_lines:
                 name += f" [{format_lines(entry.path)} lines]"
 
@@ -83,6 +84,11 @@ def summary_stats(path, show_hidden=False, ignore_types=None):
     total_size = 0
     total_lines = 0
     hidden_count = 0
+    max_file_size = 0
+    min_file_size = None
+    max_dir_size = 0
+    min_dir_size = None
+    max_lines = 0
 
     for root, dirs, files in os.walk(path):
         hidden_count += sum(1 for d in dirs if d.startswith(".") and show_hidden)
@@ -95,25 +101,74 @@ def summary_stats(path, show_hidden=False, ignore_types=None):
             total_files += 1
             fp = os.path.join(root, f)
             try:
-                total_size += os.path.getsize(fp)
+                size = os.path.getsize(fp)
+                total_size += size
+                if size > max_file_size:
+                    max_file_size = size
+                if min_file_size is None or size < min_file_size:
+                    min_file_size = size
+                lines = format_lines(fp)
+                total_lines += lines
+                if lines > max_lines:
+                    max_lines = lines
             except Exception:
                 continue
+
+        for d in dirs:
+            dp = os.path.join(root, d)
             try:
-                with open(fp, 'r', errors='ignore') as file:
-                    total_lines += sum(1 for _ in file)
+                size = format_size(dp)
+                if size > max_dir_size:
+                    max_dir_size = size
+                if min_dir_size is None or size < min_dir_size:
+                    min_dir_size = size
             except Exception:
                 continue
 
-    return total_files, total_dirs, total_size, total_lines, hidden_count
+    avg_file_size = total_size // total_files if total_files else 0
 
-def print_summary(path, show_hidden=False, ignore_types=None):
-    total_files, total_dirs, total_size, total_lines, hidden_count = summary_stats(path, show_hidden, ignore_types)
+    return {
+        "total_files": total_files,
+        "total_dirs": total_dirs,
+        "total_size": total_size,
+        "total_lines": total_lines,
+        "hidden_count": hidden_count,
+        "max_file_size": max_file_size,
+        "min_file_size": min_file_size or 0,
+        "max_dir_size": max_dir_size,
+        "min_dir_size": min_dir_size or 0,
+        "avg_file_size": avg_file_size,
+        "max_lines": max_lines
+    }
+
+def print_summary(stat_dict):
     print("\n--- Summary ---")
-    print(f"Files: {total_files}")
-    print(f"Directories: {total_dirs}")
-    print(f"Total size: {format_size_bytes(total_size)}")
-    print(f"Total lines: {total_lines}")
-    print(f"Hidden files/directories: {hidden_count}")
+    print(f"Total files: {stat_dict['total_files']}")
+    print(f"Total directories: {stat_dict['total_dirs']}")
+    print(f"Total size: {format_size_bytes(stat_dict['total_size'])}")
+    print(f"Largest file size: {format_size_bytes(stat_dict['max_file_size'])}")
+    print(f"Smallest file size: {format_size_bytes(stat_dict['min_file_size'])}")
+    print(f"Largest directory size: {format_size_bytes(stat_dict['max_dir_size'])}")
+    print(f"Smallest directory size: {format_size_bytes(stat_dict['min_dir_size'])}")
+    print(f"Average file size: {format_size_bytes(stat_dict['avg_file_size'])}")
+    print(f"Longest file lines: {stat_dict['max_lines']}")
+
+def extension_distribution(path, show_hidden=False, ignore_types=None):
+    ext_counter = Counter()
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            if ignore_types and any(f.endswith(ext) for ext in ignore_types):
+                continue
+            if not show_hidden and f.startswith("."):
+                continue
+            ext = os.path.splitext(f)[1] or "NO_EXT"
+            ext_counter[ext] += 1
+    return ext_counter
+
+def print_extdist(ext_counter):
+    print("\n--- Extension Distribution ---")
+    for ext, count in ext_counter.most_common():
+        print(f"{ext}: {count}")
 
 def main():
     parser = argparse.ArgumentParser(description="TreeX - Directory lister with optional features")
@@ -122,8 +177,9 @@ def main():
     parser.add_argument("--depth", type=int, default=None, help="Limit tree depth")
     parser.add_argument("--size", action="store_true", help="Show file and folder sizes")
     parser.add_argument("--lines", action="store_true", help="Show number of lines in files")
-    parser.add_argument("--summary", action="store_true", help="Show summary statistics")
     parser.add_argument("--ignoretype", "-it", nargs="*", default=None, help="Ignore specified file types (.ext)")
+    parser.add_argument("--summary", action="store_true", help="Show summary statistics")
+    parser.add_argument("--extdist", "-ed", action="store_true", help="Show extension distribution")
     args = parser.parse_args()
 
     rc = print_tree(args.path, show_hidden=args.all, max_depth=args.depth, show_size=args.size,
@@ -132,7 +188,12 @@ def main():
         sys.exit(rc)
 
     if args.summary:
-        print_summary(args.path, show_hidden=args.all, ignore_types=args.ignoretype)
+        stat_dict = summary_stats(args.path, show_hidden=args.all, ignore_types=args.ignoretype)
+        print_summary(stat_dict)
+
+    if args.extdist:
+        ext_counter = extension_distribution(args.path, show_hidden=args.all, ignore_types=args.ignoretype)
+        print_extdist(ext_counter)
 
 if __name__ == "__main__":
     main()
