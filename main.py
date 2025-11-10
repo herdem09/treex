@@ -14,14 +14,15 @@ SPACE = "    "
 # ANSI renk kodları
 RESET = "\033[0m"
 
+
 def load_color_config():
     """~/.config/treex/treex.conf dosyasından renk yapılandırmasını yükler"""
     config_path = Path.home() / ".config" / "treex" / "treex.conf"
     colors = {}
-    
+
     if not config_path.exists():
         return colors
-    
+
     try:
         with open(config_path, 'r') as f:
             for line in f:
@@ -37,8 +38,9 @@ def load_color_config():
                         colors[key] = f"\033[{value}m"
     except Exception as e:
         print(f"Warning: Could not read config file: {e}", file=sys.stderr)
-    
+
     return colors
+
 
 def get_color_for_item(item_name, is_dir, colors):
     """Bir dosya veya klasör için uygun rengi döndürür"""
@@ -49,21 +51,23 @@ def get_color_for_item(item_name, is_dir, colors):
         elif 'primary' in colors:
             return colors['primary']
         return ''
-    
+
     # Dosya için uzantıya göre renk
     ext = os.path.splitext(item_name)[1].lower()
     if ext in colors:
         return colors[ext]
     elif 'primary' in colors:
         return colors['primary']
-    
+
     return ''
+
 
 def colorize(text, color):
     """Metni verilen renkte döndürür"""
     if color:
         return f"{color}{text}{RESET}"
     return text
+
 
 def format_size_bytes(size_bytes):
     size = size_bytes
@@ -72,6 +76,7 @@ def format_size_bytes(size_bytes):
             return f"{size} {unit}"
         size //= 1024
     return f"{size} TB"
+
 
 def format_size(path):
     try:
@@ -89,6 +94,7 @@ def format_size(path):
     except Exception:
         return 0
 
+
 def format_lines(path):
     try:
         with open(path, 'r', errors='ignore') as f:
@@ -96,14 +102,21 @@ def format_lines(path):
     except Exception:
         return 0
 
+
 def format_mtime(path):
     try:
         ts = os.path.getmtime(path)
-        return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
+        return datetime.datetime.fromtimestamp(
+            ts).strftime("%Y-%m-%d %H:%M:%S")
     except Exception:
         return "N/A"
 
-def should_include_file(filename, ignore_types=None, ignore_files=None, show_types=None):
+
+def should_include_file(
+        filename,
+        ignore_types=None,
+        ignore_files=None,
+        show_types=None):
     if show_types and not any(filename.endswith(ext) for ext in show_types):
         return False
     if ignore_files and filename in ignore_files:
@@ -112,12 +125,22 @@ def should_include_file(filename, ignore_types=None, ignore_files=None, show_typ
         return False
     return True
 
-def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, show_lines=False,
-               ignore_types=None, ignore_files=None, show_types=None, last_change=False, 
-               output_file=None, colors=None):
+
+def print_tree(
+        root_path,
+        show_hidden=False,
+        max_depth=None,
+        show_size=False,
+        show_lines=False,
+        ignore_types=None,
+        ignore_files=None,
+        show_types=None,
+        last_change=False,
+        output_file=None,
+        colors=None):
     if colors is None:
         colors = {}
-    
+
     root_path = os.path.abspath(root_path)
     if not os.path.exists(root_path):
         print(f"Error: path does not exist: {root_path}", file=sys.stderr)
@@ -126,31 +149,46 @@ def print_tree(root_path, show_hidden=False, max_depth=None, show_size=False, sh
     root_name = os.path.basename(root_path) + "/"
     root_color = get_color_for_item(root_name, True, colors)
     lines = [colorize(root_name, root_color)]
-    
+
     _walk(root_path, "", show_hidden, 0, max_depth, show_size, show_lines,
           ignore_types, ignore_files, show_types, last_change, lines, colors)
-    
+
     for line in lines:
         print(line)
-    
+
     if output_file:
         try:
             # Export için renk kodlarını temizle
-            clean_lines = [line.replace(RESET, '').replace('\033[', '').split('m')[-1] 
-                          if '\033[' in line else line for line in lines]
+            clean_lines = [line.replace(RESET, '').replace('\033[', '').split(
+                'm')[-1] if '\033[' in line else line for line in lines]
             # Daha iyi temizleme
             import re
-            clean_lines = [re.sub(r'\033\[[0-9;]+m', '', line) for line in lines]
+            clean_lines = [re.sub(r'\033\[[0-9;]+m', '', line)
+                           for line in lines]
             with open(output_file, 'w') as f:
                 f.write("\n".join(clean_lines))
         except Exception as e:
             print(f"Error writing to {output_file}: {e}", file=sys.stderr)
 
-def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_lines,
-          ignore_types, ignore_files, show_types, last_change, lines, colors):
+
+def _walk(
+        path,
+        prefix,
+        show_hidden,
+        current_depth,
+        max_depth,
+        show_size,
+        show_lines,
+        ignore_types,
+        ignore_files,
+        show_types,
+        last_change,
+        lines,
+        colors):
     try:
         with os.scandir(path) as it:
-            entries = [e for e in it if show_hidden or not e.name.startswith(".")]
+            entries = [
+                e for e in it if show_hidden or not e.name.startswith(".")]
     except PermissionError:
         lines.append(prefix + CONNECT_LAST + "[permission denied]")
         return
@@ -163,12 +201,16 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
         name = entry.name + ("/" if entry.is_dir() else "")
 
         if entry.is_file():
-            if not should_include_file(entry.name, ignore_types, ignore_files, show_types):
+            if not should_include_file(
+                    entry.name,
+                    ignore_types,
+                    ignore_files,
+                    show_types):
                 continue
-            
+
             # Renk al
             color = get_color_for_item(entry.name, False, colors)
-            
+
             # Ek bilgileri ekle
             extra_info = ""
             if show_size:
@@ -177,25 +219,44 @@ def _walk(path, prefix, show_hidden, current_depth, max_depth, show_size, show_l
                 extra_info += f" [{format_lines(entry.path)} lines]"
             if last_change:
                 extra_info += f" (modified: {format_mtime(entry.path)})"
-            
+
             # Renklendir
             colored_name = colorize(name + extra_info, color)
             lines.append(prefix + connector + colored_name)
-        
+
         elif entry.is_dir(follow_symlinks=False):
             # Klasör için renk
             color = get_color_for_item(entry.name, True, colors)
             colored_name = colorize(name, color)
             lines.append(prefix + connector + colored_name)
-            
+
             if max_depth is None or current_depth + 1 < max_depth:
                 extension = SPACE if is_last else PIPE
-                _walk(os.path.join(path, entry.name), prefix + extension, show_hidden,
-                      current_depth + 1, max_depth, show_size, show_lines,
-                      ignore_types, ignore_files, show_types, last_change, lines, colors)
+                _walk(
+                    os.path.join(
+                        path,
+                        entry.name),
+                    prefix + extension,
+                    show_hidden,
+                    current_depth + 1,
+                    max_depth,
+                    show_size,
+                    show_lines,
+                    ignore_types,
+                    ignore_files,
+                    show_types,
+                    last_change,
+                    lines,
+                    colors)
 
-def summary_stats(path, show_hidden=False, ignore_types=None, ignore_files=None,
-                  show_types=None, max_depth=None):
+
+def summary_stats(
+        path,
+        show_hidden=False,
+        ignore_types=None,
+        ignore_files=None,
+        show_types=None,
+        max_depth=None):
     total_files = 0
     total_dirs = 0
     total_size = 0
@@ -217,11 +278,12 @@ def summary_stats(path, show_hidden=False, ignore_types=None, ignore_files=None,
         if show_hidden:
             hidden_count += sum(1 for d in dirs if d.startswith("."))
             hidden_count += sum(1 for f in files if f.startswith("."))
-        
+
         total_dirs += len(dirs)
 
         for f in files:
-            if not should_include_file(f, ignore_types, ignore_files, show_types):
+            if not should_include_file(
+                    f, ignore_types, ignore_files, show_types):
                 continue
             total_files += 1
             fp = os.path.join(root, f)
@@ -266,6 +328,7 @@ def summary_stats(path, show_hidden=False, ignore_types=None, ignore_files=None,
         "max_lines": max_lines
     }
 
+
 def print_summary(stat_dict, output_file=None):
     lines = [
         "--- Summary ---",
@@ -287,10 +350,18 @@ def print_summary(stat_dict, output_file=None):
             with open(output_file, 'a') as f:
                 f.write("\n".join(lines) + "\n")
         except Exception as e:
-            print(f"Error writing summary to {output_file}: {e}", file=sys.stderr)
+            print(
+                f"Error writing summary to {output_file}: {e}",
+                file=sys.stderr)
 
-def extension_distribution(path, show_hidden=False, ignore_types=None, ignore_files=None,
-                           show_types=None, max_depth=None):
+
+def extension_distribution(
+        path,
+        show_hidden=False,
+        ignore_types=None,
+        ignore_files=None,
+        show_types=None,
+        max_depth=None):
     ext_counter = Counter()
     dir_count = 0
     root_depth = path.rstrip(os.sep).count(os.sep)
@@ -305,13 +376,15 @@ def extension_distribution(path, show_hidden=False, ignore_types=None, ignore_fi
                 continue
             dir_count += 1
         for f in files:
-            if not should_include_file(f, ignore_types, ignore_files, show_types):
+            if not should_include_file(
+                    f, ignore_types, ignore_files, show_types):
                 continue
             if not show_hidden and f.startswith("."):
                 continue
             ext = os.path.splitext(f)[1] or "(no extension)"
             ext_counter[ext] += 1
     return ext_counter, dir_count
+
 
 def print_extdist(ext_counter, dir_count, output_file=None):
     lines = ["--- Extension Distribution ---", f"Directories: {dir_count}"]
@@ -324,24 +397,82 @@ def print_extdist(ext_counter, dir_count, output_file=None):
             with open(output_file, 'a') as f:
                 f.write("\n".join(lines) + "\n")
         except Exception as e:
-            print(f"Error writing extension distribution to {output_file}: {e}", file=sys.stderr)
+            print(
+                f"Error writing extension distribution to {output_file}: {e}",
+                file=sys.stderr)
+
 
 def main():
-    parser = argparse.ArgumentParser(description="TreeX - Directory lister with optional features")
-    parser.add_argument("path", nargs="?", default=os.getcwd(), help="Directory to list")
-    parser.add_argument("-a", "--all", action="store_true", help="Show hidden files")
-    parser.add_argument("--depth", type=int, default=None, help="Limit tree depth")
-    parser.add_argument("--size", action="store_true", help="Show file and folder sizes")
-    parser.add_argument("--lines", action="store_true", help="Show number of lines in files")
-    parser.add_argument("--ignoretype", "-it", nargs="*", default=None, help="Ignore these file types (.ext)")
-    parser.add_argument("--ignorefile", "-if", nargs="*", default=None, help="Ignore these specific files")
-    parser.add_argument("--showtype", "-st", nargs="*", default=None, help="Only show these file types (.ext)")
-    parser.add_argument("--summary", action="store_true", help="Show summary statistics (with tree)")
-    parser.add_argument("--justsum", action="store_true", help="Show only summary statistics (no tree)")
-    parser.add_argument("--extdist", "-ed", action="store_true", help="Show extension distribution")
-    parser.add_argument("--lastchange", "-lc", action="store_true", help="Show last modified time for files and folders")
-    parser.add_argument("--export", "-ex", type=str, help="Export output to specified file")
-    parser.add_argument("--no-color", action="store_true", help="Disable color output")
+    parser = argparse.ArgumentParser(
+        description="TreeX - Directory lister with optional features")
+    parser.add_argument(
+        "path",
+        nargs="?",
+        default=os.getcwd(),
+        help="Directory to list")
+    parser.add_argument(
+        "-a",
+        "--all",
+        action="store_true",
+        help="Show hidden files")
+    parser.add_argument(
+        "--depth",
+        type=int,
+        default=None,
+        help="Limit tree depth")
+    parser.add_argument(
+        "--size",
+        action="store_true",
+        help="Show file and folder sizes")
+    parser.add_argument(
+        "--lines",
+        action="store_true",
+        help="Show number of lines in files")
+    parser.add_argument(
+        "--ignoretype",
+        "-it",
+        nargs="*",
+        default=None,
+        help="Ignore these file types (.ext)")
+    parser.add_argument(
+        "--ignorefile",
+        "-if",
+        nargs="*",
+        default=None,
+        help="Ignore these specific files")
+    parser.add_argument(
+        "--showtype",
+        "-st",
+        nargs="*",
+        default=None,
+        help="Only show these file types (.ext)")
+    parser.add_argument(
+        "--summary",
+        action="store_true",
+        help="Show summary statistics (with tree)")
+    parser.add_argument(
+        "--justsum",
+        action="store_true",
+        help="Show only summary statistics (no tree)")
+    parser.add_argument(
+        "--extdist",
+        "-ed",
+        action="store_true",
+        help="Show extension distribution")
+    parser.add_argument(
+        "--lastchange",
+        "-lc",
+        action="store_true",
+        help="Show last modified time for files and folders")
+    parser.add_argument(
+        "--export",
+        "-ex",
+        type=str,
+        help="Export output to specified file")
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        help="Disable color output")
     args = parser.parse_args()
 
     # Renk yapılandırmasını yükle
@@ -386,6 +517,7 @@ def main():
             max_depth=args.depth
         )
         print_extdist(ext_counter, dir_count, output_file=args.export)
+
 
 if __name__ == "__main__":
     main()
