@@ -1,20 +1,50 @@
-# 🌲 Treex
+# 🌲 Treex  
+### *Tree Explorer — A colorful, fast, and customizable CLI directory viewer*
 
-**Treex** is a modern, colorized, and feature-rich command-line tree viewer written in Python.  
-It allows you to visualize directories, display file statistics, colorize file types, and export results — all in one command.
+> **Treex** (Tree Explorer) is a lightweight and modern command-line utility  
+> that lets you explore your file system visually — with colors, file sizes, line counts,  
+> summaries, and full configuration support.
 
 ---
 
-## 📦 Features
+## 🧭 Name Origin
+
+**Treex** = **Tree** + **Explorer**  
+That little **“x”** stands for *exploration* — the extra step beyond the classic `tree` command.  
+It’s fast, flexible, and designed for developers who live in the terminal.
+
+---
+
+## ⚡ Features
 
 - 🖍️ Colorized directory and file tree (configurable via `~/.config/treex/treex.conf`)
 - 📁 File and folder size display
 - 📄 Count total lines in source files
 - 🕒 Show last modification time
 - 🧮 Summary statistics and extension distribution
-- 🧰 Export tree output to a file (cleaned of ANSI codes)
+- 🧰 Export tree output (cleaned of ANSI codes)
 - 🪶 Customizable color scheme for each file type
-- 🧊 Works on **Arch Linux** and **Debian-based** systems (packages provided)
+- 🧊 Works on **Arch Linux** and **Debian-based** systems
+
+---
+
+## 🧩 Example Output
+
+```
+
+project/
+├── main.py (12 KB) [340 lines]
+├── README.md (2 KB)
+└── data/
+├── input.txt (8 KB)
+└── output.log (1 KB)
+
+Summary:
+Total files: 5
+Total lines: 420
+Total size: 23 KB
+
+````
 
 ---
 
@@ -54,7 +84,7 @@ treex
 
 ---
 
-## 🧩 Configuration
+## ⚙️ Configuration
 
 Treex uses a configuration file located at:
 
@@ -104,7 +134,7 @@ Show hidden files:
 treex -a
 ```
 
-Show file sizes and number of lines:
+Show file sizes and line counts:
 
 ```bash
 treex --size --lines
@@ -130,16 +160,16 @@ treex --summary --extdist
 
 ---
 
-## 📊 Example Output
+## 📦 Package Info
 
-```
-project/
-├── main.py (12 KB) [340 lines]
-├── README.md (2 KB)
-└── data/
-    ├── input.txt (8 KB)
-    └── output.log (1 KB)
-```
+| Field          | Value               |
+| -------------- | ------------------- |
+| **Name**       | treex               |
+| **Version**    | 1.0.0               |
+| **Language**   | Python 3            |
+| **Platform**   | Arch Linux / Debian |
+| **License**    | MIT                 |
+| **Maintainer** | herdem09            |
 
 ---
 
@@ -157,11 +187,5 @@ Licensed under the **MIT License** — free to use, modify, and distribute.
 
 ---
 
-## 🧱 Build Info
-
-* **Version:** 1.0.0
-* **Language:** Python 3
-* **Platforms:** Arch Linux, Debian / Ubuntu
-* **Dependencies:** Python ≥ 3.6
-
-```
+> “A tiny ‘x’ can turn a simple tree into an explorer.”
+> — *Treex, v1.0.0*
