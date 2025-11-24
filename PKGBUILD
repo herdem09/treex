@@ -1,29 +1,18 @@
-# Maintainer: herdem09 herdem09@proton.me
 pkgname=treex
 pkgver=1.0.0
 pkgrel=1
 pkgdesc="TreeX - directory lister with color and summary features"
-arch=('x86_64')
+arch=('any')
 url="https://github.com/herdem09/treex"
 license=('MIT')
 depends=('python')
-source=(
-    "main.py"
-    "README.md"
-    "treex.conf"
-)
-sha256sums=('f28f0b5f7a5f151192cbafb66a3191da8362e169aa367d421ace839172741406'
-            '7a4ea7a85f036a4d4c287c591f8d2276c19e7900665b980083ccd57e5827b839'
-            '9879dc569d2a7197f59f5ef87b9a6bce21249d32604dfff35031960108046a42')
+_gitname="${pkgname}-main"
+source=("${pkgname}-${pkgver}.tar.gz::${url}/archive/main.tar.gz")
+sha256sums=('5e38b6bcf9c22a0a9e43050fb3ab784001d7fb128a7f8776d79ff7780fa83341')
 
 package() {
-    mkdir -p "$pkgdir/usr/bin"
-    cp main.py "$pkgdir/usr/bin/treex"
-    chmod +x "$pkgdir/usr/bin/treex"
-
-    mkdir -p "$pkgdir/etc/treex"
-    cp treex.conf "$pkgdir/etc/treex/"
-    
-    mkdir -p "$pkgdir/usr/share/doc/treex"
-    cp README.md "$pkgdir/usr/share/doc/treex/"
+  install -Dm755 "${srcdir}/${_gitname}/main.py" "${pkgdir}/usr/bin/treex"
+  install -Dm644 "${srcdir}/${_gitname}/LICENSE" "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+  install -Dm644 "${srcdir}/${_gitname}/README.md" "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+  install -Dm644 "${srcdir}/${_gitname}/treex.conf" "${pkgdir}/usr/share/doc/${pkgname}/treex.conf.example"
 }
